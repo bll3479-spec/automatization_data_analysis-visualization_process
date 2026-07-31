@@ -28,41 +28,52 @@ plt.close()
 print('저장: 01_saleprice_hist.png')
 
 # ② OverallQual별 SalePrice 박스플롯
-plt.figure(figsize=(9, 5))
+plt.figure(figsize=(9, 5.4))
 sns.boxplot(x='OverallQual', y='SalePrice', data=df, hue='OverallQual', palette='Blues', legend=False)
 plt.title('전반적 품질(OverallQual)별 SalePrice 분포')
 plt.xlabel('OverallQual (1~10)')
 plt.ylabel('SalePrice (USD)')
-plt.tight_layout()
+plt.figtext(0.5, 0.005,
+            '※ 색 해석: 파란색이 진할수록 품질 등급이 높음 (연한 파랑=저품질 1, 진한 파랑=고품질 10)',
+            ha='center', fontsize=9, color='dimgray')
+plt.tight_layout(rect=[0, 0.03, 1, 1])
 plt.savefig('02_overallqual_boxplot.png', dpi=120)
 plt.close()
 print('저장: 02_overallqual_boxplot.png')
 
 # ③ GrLivArea vs SalePrice 산점도 + 회귀선
-plt.figure(figsize=(8, 5))
+plt.figure(figsize=(8, 5.4))
 sns.regplot(x='GrLivArea', y='SalePrice', data=df,
-            scatter_kws={'alpha': 0.4, 's': 15}, line_kws={'color': 'red'})
+            scatter_kws={'alpha': 0.4, 's': 15, 'label': '개별 주택'},
+            line_kws={'color': 'red', 'label': '선형 회귀선(추세)'})
 r_val = df['GrLivArea'].corr(df['SalePrice'])
 plt.text(0.02, 0.95, f'r = {r_val:.2f}', transform=plt.gca().transAxes,
          fontsize=11, va='top', bbox=dict(boxstyle='round', fc='white', ec='gray'))
 plt.title('GrLivArea vs SalePrice')
 plt.xlabel('GrLivArea (지상 거주 면적, sq ft)')
 plt.ylabel('SalePrice (USD)')
-plt.tight_layout()
+plt.legend(loc='lower right')
+plt.figtext(0.5, 0.005,
+            '※ 색 해석: 파란 점=주택 1채(진하게 겹칠수록 밀집 구간), 빨간 선=회귀 추세선, 붉은 음영=회귀선의 95% 신뢰구간',
+            ha='center', fontsize=9, color='dimgray')
+plt.tight_layout(rect=[0, 0.03, 1, 1])
 plt.savefig('03_grlivarea_scatter.png', dpi=120)
 plt.close()
 print('저장: 03_grlivarea_scatter.png')
 
 # ④ Neighborhood별 평균 SalePrice 막대그래프 (값 정렬)
 nbhd_mean = df.groupby('Neighborhood')['SalePrice'].mean().sort_values(ascending=False)
-plt.figure(figsize=(11, 5))
+plt.figure(figsize=(11, 5.4))
 sns.barplot(x=nbhd_mean.index, y=nbhd_mean.values, hue=nbhd_mean.index,
             palette='viridis', legend=False)
 plt.xticks(rotation=75)
 plt.title('지역(Neighborhood)별 평균 SalePrice')
 plt.xlabel('Neighborhood')
 plt.ylabel('평균 SalePrice (USD)')
-plt.tight_layout()
+plt.figtext(0.5, 0.005,
+            '※ 색 해석: 평균가 순위를 따라 어두운 보라(고가 지역)→노랑(저가 지역)으로 변화 (viridis 팔레트, 막대 높이와 동일 정보)',
+            ha='center', fontsize=9, color='dimgray')
+plt.tight_layout(rect=[0, 0.03, 1, 1])
 plt.savefig('04_neighborhood_bar.png', dpi=120)
 plt.close()
 print('저장: 04_neighborhood_bar.png')
@@ -70,11 +81,15 @@ print('저장: 04_neighborhood_bar.png')
 # ⑤ (선택) 수치형 feature 상관 히트맵
 num_df = df.select_dtypes('number').drop(columns=['Id'])
 corr = num_df.corr()
-plt.figure(figsize=(10, 8))
-sns.heatmap(corr, annot=True, fmt='.2f', cmap='coolwarm', center=0,
-            square=True, linewidths=0.5, annot_kws={'size': 7})
+plt.figure(figsize=(10, 8.4))
+ax = sns.heatmap(corr, annot=True, fmt='.2f', cmap='coolwarm', center=0,
+                 square=True, linewidths=0.5, annot_kws={'size': 7},
+                 cbar_kws={'label': '피어슨 상관계수 r'})
 plt.title('수치형 Feature 상관 히트맵')
-plt.tight_layout()
+plt.figtext(0.5, 0.005,
+            '※ 색 해석: 빨강=양의 상관(함께 증가), 파랑=음의 상관(반대로 움직임), 색이 진할수록 관계가 강함 (|r|≥0.8 진한 빨강 = 다중공선성 위험)',
+            ha='center', fontsize=9, color='dimgray')
+plt.tight_layout(rect=[0, 0.02, 1, 1])
 plt.savefig('05_corr_heatmap.png', dpi=120)
 plt.close()
 print('저장: 05_corr_heatmap.png')
