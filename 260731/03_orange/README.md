@@ -44,6 +44,7 @@ Gradient Boosting으로 동일**.
 
 ## 산출물
 - `회귀모델_전체_프로세스_캔버스.png`: 워크플로우 전체 캔버스 캡처
-- `회귀모델_test&score_결과표.png`: 전처리 전/후 R² 비교표
+- `test&score_결과표.png`: Test and Score 창 캡처 (5-fold CV, 모델 4종 성능표 + 쌍대 비교표)
+- `전처리_전후_R2비교.png`: 전처리(Discretize→Normalize) 전/후 R² 비교표
 - `모델비교_scatter.html`: 모델 4종의 실제값 vs 예측값 산점도 (Orange 리포트)
 - `../pred_houseprice.ows`: 완성 워크플로우 파일
