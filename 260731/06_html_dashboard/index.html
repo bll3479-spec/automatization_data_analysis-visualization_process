@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>주택가격 대시보드 — Ames Housing</title>
+<!-- Chart.js v4.4.3 — 오프라인에서도 열리도록 로컬 동봉 (CDN: https://cdn.jsdelivr.net/npm/chart.js@4.4.3) -->
+<script src="chart.umd.min.js"></script>
+<script src="data.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page:        #f9f9f7;
+    --surface:     #fcfcfb;
+    --ink:         #0b0b0b;
+    --ink-2:       #52514e;
+    --muted:       #898781;
+    --grid:        #e1e0d9;
+    --baseline:    #c3c2b7;
+    --border:      rgba(11,11,11,0.10);
+    --series:      #2a78d6;   /* 기본 계열색 (파랑) */
+    --series-dim:  rgba(42,120,214,0.25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page:        #0d0d0d;
+      --surface:     #1a1a19;
+      --ink:         #ffffff;
+      --ink-2:       #c3c2b7;
+      --muted:       #898781;
+      --grid:        #2c2c2a;
+      --baseline:    #383835;
+      --border:      rgba(255,255,255,0.10);
+      --series:      #3987e5;
+      --series-dim:  rgba(57,135,229,0.25);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--ink-2); font-size: 13px; margin-bottom: 20px; }
+
+  /* 필터 행 — 차트 위 한 줄 */
+  .filters {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .filters label { font-size: 13px; color: var(--ink-2); }
+  .filters select {
+    font: inherit; font-size: 13px; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px;
+  }
+  .filters button {
+    font: inherit; font-size: 13px; color: var(--ink-2);
+    background: none; border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; cursor: pointer;
+  }
+  .filters button:hover { background: var(--surface); }
+
+  /* KPI 카드 */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .kpi .label { font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
+  .kpi .value { font-size: 26px; font-weight: 600; }
+  .kpi .note  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* 차트 카드 */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px; min-width: 0;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 2px; }
+  .card .desc { font-size: 11.5px; color: var(--muted); margin: 0 0 10px; }
+  .card.wide { grid-column: 1 / -1; }
+  .chart-box { position: relative; height: 300px; }
+  .card.wide .chart-box { height: 480px; }
+
+  /* 산점도 품질 램프 범례 */
+  .ramp-legend { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2); margin-top: 8px; }
+  .ramp-legend .swatches { display: flex; border-radius: 3px; overflow: hidden; }
+  .ramp-legend .swatches span { width: 16px; height: 10px; display: inline-block; }
+
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>주택가격 대시보드</h1>
+<div class="sub">Ames Housing · housePricing_reduced.csv (1,460채) — 필터를 조작하면 아래 모든 지표·차트가 함께 갱신됩니다.</div>
+
+<!-- 필터: 한 줄, 콘텐츠 위 -->
+<div class="filters">
+  <label for="f-nb">지역(Neighborhood)</label>
+  <select id="f-nb"><option value="">전체</option></select>
+  <label for="f-q">품질(OverallQual)</label>
+  <select id="f-q"><option value="">전체</option></select>
+  <button id="f-reset" type="button">필터 초기화</button>
+</div>
+
+<!-- KPI 카드 3종 -->
+<div class="kpis">
+  <div class="kpi"><div class="label">평균 판매가</div><div class="value" id="kpi-avg">—</div><div class="note">필터 적용 기준 평균 SalePrice</div></div>
+  <div class="kpi"><div class="label">최고 판매가</div><div class="value" id="kpi-max">—</div><div class="note">필터 적용 기준 최대 SalePrice</div></div>
+  <div class="kpi"><div class="label">주택 수</div><div class="value" id="kpi-cnt">—</div><div class="note">필터 적용 기준 거래 건수</div></div>
+</div>
+
+<div class="grid">
+  <div class="card wide">
+    <h2>지역별 평균 판매가</h2>
+    <p class="desc">평균 SalePrice 내림차순. 지역 필터 선택 시 해당 지역만 강조됩니다.</p>
+    <div class="chart-box"><canvas id="chart-nb"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>거주 면적 vs 판매가</h2>
+    <p class="desc">GrLivArea(sq ft) 대비 SalePrice. 점 색이 진할수록 품질(OverallQual)이 높습니다.</p>
+    <div class="chart-box"><canvas id="chart-sc"></canvas></div>
+    <div class="ramp-legend">품질 1 <span class="swatches" id="ramp-swatches"></span> 10</div>
+  </div>
+
+  <div class="card">
+    <h2>품질 등급별 주택 수</h2>
+    <p class="desc">OverallQual(1~10) 분포. 품질 필터 선택 시 해당 등급만 강조됩니다.</p>
+    <div class="chart-box"><canvas id="chart-q"></canvas></div>
+  </div>
+</div>
+
+<script>
+// ── 색: CSS 변수에서 읽어 라이트/다크 자동 대응 ─────────────────
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// 품질 1~10 → 파랑 단일 색상 램프(연함→진함). 순차(크기) 인코딩.
+const QUAL_RAMP = ['#cde2fb','#b7d3f6','#9ec5f4','#86b6ef','#6da7ec',
+                   '#5598e7','#3987e5','#2a78d6','#1c5cab','#104281'];
+
+const fmtWon = v => '$' + Math.round(v).toLocaleString('en-US');
+const fmtCompact = v => v >= 1000 ? (v/1000).toFixed(v >= 100000 ? 0 : 1) + 'K' : String(v);
+
+// ── 필터 상태 ───────────────────────────────────────────────
+const state = { nb: '', q: '' };
+const filtered = () => HOUSES.filter(h =>
+  (!state.nb || h.nb === state.nb) && (!state.q || h.q === +state.q));
+
+// ── 필터 옵션 채우기 ────────────────────────────────────────
+const nbSel = document.getElementById('f-nb');
+const qSel  = document.getElementById('f-q');
+[...new Set(HOUSES.map(h => h.nb))].sort().forEach(nb => {
+  const o = document.createElement('option'); o.value = nb; o.textContent = nb; nbSel.appendChild(o);
+});
+[...new Set(HOUSES.map(h => h.q))].sort((a,b) => a-b).forEach(q => {
+  const o = document.createElement('option'); o.value = q; o.textContent = q + '등급'; qSel.appendChild(o);
+});
+
+// 램프 범례 스와치
+QUAL_RAMP.forEach(c => {
+  const s = document.createElement('span'); s.style.background = c;
+  document.getElementById('ramp-swatches').appendChild(s);
+});
+
+// ── Chart.js 공통 옵션 (recessive한 그리드/축) ───────────────
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+Chart.defaults.font.size = 11;
+
+function axisColors() {
+  return { grid: css('--grid'), tick: css('--muted'), border: css('--baseline') };
+}
+
+// ── 차트 1: 지역별 평균가 (가로 막대, 정렬) ──────────────────
+const nbAll = [...new Set(HOUSES.map(h => h.nb))];
+function nbAverages(rows) {
+  const sum = {}, cnt = {};
+  rows.forEach(h => { sum[h.nb] = (sum[h.nb]||0) + h.price; cnt[h.nb] = (cnt[h.nb]||0) + 1; });
+  return nbAll.map(nb => ({ nb, avg: cnt[nb] ? sum[nb]/cnt[nb] : 0 }))
+              .sort((a,b) => b.avg - a.avg);
+}
+const ac = axisColors();
+const chartNb = new Chart(document.getElementById('chart-nb'), {
+  type: 'bar',
+  data: { labels: [], datasets: [{ data: [], borderRadius: { topRight: 4, bottomRight: 4 },
+          borderSkipped: 'left', maxBarThickness: 16, backgroundColor: css('--series') }] },
+  options: {
+    indexAxis: 'y', maintainAspectRatio: false, animation: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: ctx => '평균 ' + fmtWon(ctx.parsed.x) } } },
+    scales: {
+      x: { grid: { color: ac.grid }, border: { color: ac.border },
+           ticks: { color: ac.tick, callback: v => '$' + fmtCompact(v) } },
+      y: { grid: { display: false }, border: { color: ac.border }, ticks: { color: ac.tick } }
+    }
+  }
+});
+
+// ── 차트 2: 면적-가격 산점도 (품질 = 파랑 램프) ──────────────
+const chartSc = new Chart(document.getElementById('chart-sc'), {
+  type: 'scatter',
+  data: { datasets: [{ data: [], pointRadius: 3.5, pointHoverRadius: 6,
+          borderColor: 'transparent' }] },
+  options: {
+    maintainAspectRatio: false, animation: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: {
+        label: ctx => {
+          const d = ctx.raw;
+          return [fmtWon(d.y), d.area.toLocaleString() + ' sqft · 품질 ' + d.q + ' · ' + d.nb];
+        } } } },
+    scales: {
+      x: { title: { display: true, text: 'GrLivArea (sq ft)', color: ac.tick },
+           grid: { color: ac.grid }, border: { color: ac.border },
+           ticks: { color: ac.tick, callback: v => fmtCompact(v) } },
+      y: { grid: { color: ac.grid }, border: { color: ac.border },
+           ticks: { color: ac.tick, callback: v => '$' + fmtCompact(v) } }
+    }
+  }
+});
+
+// ── 차트 3: 품질별 주택 수 (세로 막대) ───────────────────────
+const chartQ = new Chart(document.getElementById('chart-q'), {
+  type: 'bar',
+  data: { labels: [1,2,3,4,5,6,7,8,9,10],
+    datasets: [{ data: [], borderRadius: { topLeft: 4, topRight: 4 },
+      borderSkipped: 'bottom', maxBarThickness: 24, backgroundColor: css('--series') }] },
+  options: {
+    maintainAspectRatio: false, animation: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ctx.parsed.y.toLocaleString() + '채' } } },
+    scales: {
+      x: { grid: { display: false }, border: { color: ac.border },
+           ticks: { color: ac.tick },
+           title: { display: true, text: 'OverallQual', color: ac.tick } },
+      y: { grid: { color: ac.grid }, border: { color: ac.border }, ticks: { color: ac.tick } }
+    }
+  }
+});
+
+// ── 렌더: 필터 상태에 맞춰 KPI + 차트 3종 동시 갱신 ──────────
+function render() {
+  const rows = filtered();
+
+  // KPI
+  const prices = rows.map(h => h.price);
+  document.getElementById('kpi-avg').textContent =
+    prices.length ? fmtWon(prices.reduce((a,b) => a+b, 0) / prices.length) : '—';
+  document.getElementById('kpi-max').textContent =
+    prices.length ? fmtWon(Math.max(...prices)) : '—';
+  document.getElementById('kpi-cnt').textContent =
+    prices.length.toLocaleString() + '채';
+
+  // 차트1: 항상 전체 지역을 그리되(품질 필터는 반영), 지역 필터 선택 시 해당 막대만 본색 유지
+  const base = HOUSES.filter(h => !state.q || h.q === +state.q);
+  const avgs = nbAverages(base);
+  chartNb.data.labels = avgs.map(a => a.nb);
+  chartNb.data.datasets[0].data = avgs.map(a => Math.round(a.avg));
+  chartNb.data.datasets[0].backgroundColor =
+    avgs.map(a => (!state.nb || a.nb === state.nb) ? css('--series') : css('--series-dim'));
+  chartNb.update();
+
+  // 차트2: 필터된 개별 주택 점, 품질 → 램프색
+  chartSc.data.datasets[0].data = rows.map(h => ({ x: h.area, y: h.price, area: h.area, q: h.q, nb: h.nb }));
+  chartSc.data.datasets[0].pointBackgroundColor = rows.map(h => QUAL_RAMP[h.q - 1]);
+  chartSc.update();
+
+  // 차트3: 항상 전체 분포(지역 필터는 반영), 품질 필터 선택 시 해당 막대만 본색 유지
+  const baseQ = HOUSES.filter(h => !state.nb || h.nb === state.nb);
+  const counts = Array.from({length: 10}, (_, i) => baseQ.filter(h => h.q === i+1).length);
+  chartQ.data.datasets[0].data = counts;
+  chartQ.data.datasets[0].backgroundColor =
+    chartQ.data.labels.map(q => (!state.q || q === +state.q) ? css('--series') : css('--series-dim'));
+  chartQ.update();
+}
+
+// ── 필터 이벤트 ─────────────────────────────────────────────
+nbSel.addEventListener('change', () => { state.nb = nbSel.value; render(); });
+qSel.addEventListener('change',  () => { state.q  = qSel.value;  render(); });
+document.getElementById('f-reset').addEventListener('click', () => {
+  state.nb = ''; state.q = ''; nbSel.value = ''; qSel.value = ''; render();
+});
+
+// 라이트/다크 전환 시 색 다시 읽어 재렌더
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => location.reload());
+
+render();
+</script>
+</body>
+</html>
